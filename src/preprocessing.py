@@ -3,6 +3,11 @@ import numpy as np
 import pandas as pd
 
 
+def remove_duplicate_rows(data, subset=None):
+    """Keep the first exact observation; optionally ignore identifier columns."""
+    return data.drop_duplicates(subset=subset).copy()
+
+
 def separate_features_target(data):
     """Exclude label leakage and the record ID, retaining all traffic features."""
     if 'label' not in data or data['label'].isna().any() or not data['label'].isin([0, 1]).all():
@@ -28,3 +33,27 @@ def handle_invalid_values(features):
     for column in categorical:
         cleaned[column] = cleaned[column].where(cleaned[column].notna(), np.nan)
     return cleaned
+
+
+def clean_observations(data):
+    """Remove contradictory labels and repeated traffic observations before splitting.
+
+    IDs hide repeated observations. Rows with identical inputs but conflicting
+    targets are ambiguous; exclude the whole group rather than choose a label.
+    This changes the evaluation population: scores describe unique unambiguous
+    observations, not the original traffic frequency distribution.
+    """
+    features, target = separate_features_target(data)
+    numeric, _ = identify_feature_types(features)
+    audit = {'raw_rows': len(data), 'full_row_duplicates': int(data.duplicated().sum()),
+             'feature_duplicates': int(features.duplicated().sum()),
+             'missing_values': int(features.isna().sum().sum()),
+             'infinite_values': int(np.isinf(features[numeric]).sum().sum())}
+    observations = features.assign(label=target)
+    conflicts = observations.groupby(list(features.columns), dropna=False)['label'].transform('nunique').gt(1)
+    audit['conflicting_rows_removed'] = int(conflicts.sum())
+    observations = remove_duplicate_rows(observations.loc[~conflicts], subset=list(features.columns))
+    audit['duplicate_rows_removed'] = len(data) - audit['conflicting_rows_removed'] - len(observations)
+    audit['clean_rows'] = len(observations)
+    features, target = separate_features_target(observations)
+    return handle_invalid_values(features), target, audit
