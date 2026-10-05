@@ -1,7 +1,11 @@
 """Small, leakage-safe preparation helpers for the binary UNSW-NB15 task."""
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from src.utils import RANDOM_STATE
 
@@ -65,3 +69,13 @@ def clean_observations(data):
 def split_dataset(features, target):
     # Stratification preserves roughly the same class proportions in both subsets.
     return train_test_split(features, target, test_size=0.2, random_state=RANDOM_STATE, stratify=target)
+
+
+def build_preprocessor(numeric, categorical):
+    """Imputation statistics, scale, and category vocabulary learn during fit only."""
+    return ColumnTransformer([
+        ('numeric', Pipeline([('impute', SimpleImputer(strategy='median', keep_empty_features=True)),
+                              ('scale', StandardScaler())]), numeric),
+        ('categorical', Pipeline([('impute', SimpleImputer(strategy='most_frequent', keep_empty_features=True)),
+                                  ('encode', OneHotEncoder(handle_unknown='ignore'))]), categorical),
+    ])
