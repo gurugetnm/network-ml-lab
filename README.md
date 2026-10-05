@@ -10,7 +10,7 @@ imbalanced classes, noisy observations, and generalization. Future research
 interests include TLS 1.3 and post-quantum cryptography; this dataset does not
 establish performance on those protocols or configurations.
 
-## Current progress — Phase 1
+## Current progress — Phase 2
 
 - Project structure, dependency list, and Git exclusions.
 - Manual UNSW-NB15 setup and a validated CSV loader.
@@ -18,7 +18,9 @@ establish performance on those protocols or configurations.
   numeric summaries, and plots.
 - Small loader test foundation and a findings journal.
 
-No cleaning transformations or models have been implemented yet.
+Phase 2 is complete: reusable cleaning, training-only preprocessing, a Logistic
+Regression baseline, evaluation, model persistence, and lightweight tests.
+The official test partition remains reserved; Phase 3 has not started.
 
 ## Setup (Python 3.12)
 
@@ -59,30 +61,36 @@ network-ml-lab/
 │   ├── raw/                 # Local CSVs; ignored by Git
 │   └── processed/           # Reserved for later phases
 ├── notebooks/
-│   └── 01_data_exploration.ipynb
+│   ├── 01_data_exploration.ipynb
+│   └── 02_preprocessing_and_logistic_regression.ipynb
 ├── src/
 │   ├── __init__.py
 │   ├── data_loader.py
-│   └── utils.py
+│   ├── utils.py
+│   ├── preprocessing.py
+│   ├── evaluation.py
+│   └── train_baseline.py
 ├── results/
 │   ├── figures/             # Generated outputs; ignored by Git
 │   └── metrics/
 ├── tests/
-│   └── test_data_loader.py
+│   ├── test_data_loader.py
+│   └── test_preprocessing.py
+├── models/                 # Local fitted pipeline; ignored by Git
 └── docs/
     └── findings.md
 ```
 
-Add preprocessing/evaluation modules and later notebooks when their phases begin,
-so every file represents understandable work rather than an empty implementation.
+Generated datasets, metrics, figures, and model files stay local and are ignored
+by Git. The findings journal records the measured baseline results.
 
 ## Learning roadmap
 
-1. **EDA (current):** pandas/NumPy, feature types, quality checks, distributions,
+1. **EDA (complete):** pandas/NumPy, feature types, quality checks, distributions,
    class imbalance, and leakage risks.
-2. **Cleaning and preprocessing:** inspect anomalies, define feature/target
+2. **Cleaning and preprocessing (complete):** inspect anomalies, define feature/target
    separation, reserve validation data, and use training-fitted transformations.
-3. **Logistic Regression:** a baseline, confusion matrix, precision, recall,
+3. **Logistic Regression (complete in Phase 2):** a baseline, confusion matrix, precision, recall,
    F1-score, and ROC-AUC.
 4. **Random Forest**, then **XGBoost:** compare overfitting and generalization.
 5. **Comparison and feature selection:** consistent splits, reproducible metrics,
@@ -101,8 +109,62 @@ poor minority-class performance; later phases will examine several metrics.
 [UNSW-NB15](https://research.unsw.edu.au/projects/unsw-nb15-dataset) is the selected
 public network intrusion dataset. See [data/README.md](data/README.md) for source,
 file placement, and citation guidance. Document observations and decisions in
-[docs/findings.md](docs/findings.md). Dataset-dependent findings remain unfilled
-until the notebook is run on actual data.
+[docs/findings.md](docs/findings.md). Phase 2 findings include an executed baseline on the local training CSV.
 
 Before committing an executed notebook, clear its outputs so raw traffic records
 and bulky plots do not enter Git. Keep source cells and meaningful observations.
+
+
+## Phase 2 — Preprocessing and Baseline Classification
+
+Open `notebooks/02_preprocessing_and_logistic_regression.ipynb` and run all cells.
+The notebook explains features, targets, encoding, scaling, leakage, and the
+intrusion-detection meaning of precision, recall, and false alarms.
+
+Logistic Regression provides an understandable linear baseline before trying
+more complex models. We use default settings with seed 42 and `max_iter=2000`;
+there is no tuning, class weighting, or Random Forest/XGBoost implementation.
+
+The workflow removes ambiguous feature groups with conflicting labels (940
+rows), then duplicate traffic observations (73,590 rows). `id` and `attack_cat`
+are excluded for their identifier and label-leakage roles. All 39 numeric and
+three categorical traffic features remain. Numeric infinities become missing;
+zero and the service category `-` remain valid.
+
+Split the 100,811 remaining observations into 80,648 training and 20,163 held-out
+validation rows using an 80/20 stratified split with seed 42. Stratification
+keeps class proportions similar. The official testing CSV remains untouched.
+**Never fit preprocessing on the full dataset:** medians, scales, and category
+vocabularies learn only from training data through the combined pipeline.
+Numerical features use median imputation and StandardScaler; categorical
+features use most-frequent imputation and OneHotEncoder with unknown categories
+ignored. Missing-value handling is reusable even though this CSV has none.
+
+Attack-positive results: accuracy **90.07%**, precision **84.45%**, recall
+**97.60%**, F1 **90.55%**, ROC-AUC **0.96824**. We also save a classification
+report and confusion matrix. Accuracy alone hides missed attacks and false
+alarms. Deduplication changes the original traffic distribution, and strong
+internal scores do not automatically imply generalization to future traffic.
+See [findings](docs/findings.md) for class counts, errors, checksums, and limits.
+
+Run from the root after activating `.venv`:
+
+```bash
+python -m unittest discover -s tests -v
+python -m src.train_baseline
+python -m jupyter lab
+```
+
+The runner saves `results/metrics/logistic_regression_metrics.csv`, a JSON audit,
+a classification report, `results/figures/logistic_regression_confusion_matrix.png`,
+and `models/logistic_regression_pipeline.joblib`. Persist the complete pipeline
+so prediction uses the fitted preprocessing. Load only trusted joblib files.
+Package ranges can cause small numerical differences; the recorded run includes
+versions. Notebook outputs should be cleared before Git commits.
+
+Current status: Phase 2 completed and executed; 10 tests pass. Before Phase 3,
+explain why splitting precedes fitting, why `attack_cat` leaks the answer, how
+cleaning changes class balance, and what false positives/negatives mean.
+Suggested Phase 3 scope: one Random Forest comparison using the same split,
+features, and metrics, with train-versus-validation and error analysis. Begin
+only after an explicit request; defer XGBoost, tuning, and SHAP.
