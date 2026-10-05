@@ -1,6 +1,9 @@
 """Small, leakage-safe preparation helpers for the binary UNSW-NB15 task."""
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
+
+from src.utils import RANDOM_STATE
 
 
 def remove_duplicate_rows(data, subset=None):
@@ -57,3 +60,8 @@ def clean_observations(data):
     audit['clean_rows'] = len(observations)
     features, target = separate_features_target(observations)
     return handle_invalid_values(features), target, audit
+
+
+def split_dataset(features, target):
+    # Stratification preserves roughly the same class proportions in both subsets.
+    return train_test_split(features, target, test_size=0.2, random_state=RANDOM_STATE, stratify=target)
