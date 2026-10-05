@@ -1,4 +1,4 @@
-# Compatible release ranges for Python 3.12; no models are trained in Phase 1.
+# Compatible release ranges for Python 3.12; Phase 2 uses scikit-learn.
 pandas>=2.2,<3
 numpy>=1.26,<3
 scikit-learn>=1.4,<2
