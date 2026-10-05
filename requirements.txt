@@ -1,0 +1,8 @@
+# Compatible release ranges for Python 3.12; no models are trained in Phase 1.
+pandas>=2.2,<3
+numpy>=1.26,<3
+scikit-learn>=1.4,<2
+matplotlib>=3.8,<4
+xgboost>=2.0,<4
+jupyter>=1.0,<2
+joblib>=1.3,<2
